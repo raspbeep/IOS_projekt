@@ -4,8 +4,8 @@ export POSIXLY_CORRECT=yes
 export LC_NUMERIC=en_US.UTF-8
 
 # LIST OF VARIABLES
-#date_time_after=""
-#date_time_before=""
+date_time_after=""
+date_time_before="9999-12-31 24:60:59"
 ticker=""
 filter=0
 after_dt=""
@@ -16,7 +16,6 @@ COMMANDS=""
 LOG_FILES=""
 GZ_LOG_FILES=""
 LOGS=""
-
 
 help() {
 	echo "Usage: [do sth]"
@@ -38,52 +37,23 @@ list_tick() {
 }
 
 profit() {
-  buy_value=0
-  sell_value=0
-  profit_value=0
-  IFS='\n'
-
-  while IFS= read -r line
-    do
-    unit_price=`echo "$line" | awk -F ';' '{print $4}'`
-    volume=`echo "$line" | awk -F ';' '{print $6}'`
-    total=`echo $unit_price\*$volume | bc`
-    if [ `echo $line | grep "buy"` ]; then
-      buy_value=`echo "$buy_value + $total" | bc`
-    else
-      sell_value=`echo "$sell_value + $total" | bc`
-    fi
-  done <<< $LOGS
-  profit_value=`echo "$sell_value - $buy_value" | bc`
-  echo "$profit_value"
+  buy_value=`echo "$LOGS" | awk -F ';' '$3 ~ /buy/ {sum += $4*$6} END {OFMT="%.2f";print sum}'`
+  sell_value=`echo "$LOGS" | awk -F ';' '$3 ~ /sell/ {sum += $4*$6} END {OFMT="%.2f";print sum}'`
+  echo "`echo "$sell_value - $buy_value" | bc`"
 }
 
 filter_logs() {
+  IFS='\n'
   if [ $filter -ne 0 ]; then
     if [ -n "$tickers" ]; then
-      NEW_LOGS=""
-      IFS='\n'
-
-      while IFS= read -r line
-      do
-        found_ticker=0
-        IFS=' '
-        for ticker in $tickers; do
-          if [ "`echo $line | grep "$ticker"`" ]; then
-            found_ticker=1
-          fi
-        done
-        if [ $found_ticker -gt 0 ]; then
-          if [ "$NEW_LOGS" ]; then
-            NEW_LOGS="$NEW_LOGS\n$line"
-          else
-            NEW_LOGS="$line"
-          fi
-        fi
-        IFS='\n'
-      done <<< $LOGS
-      
-      LOGS=$NEW_LOGS
+      LOGS=`echo $LOGS | grep "$tickers"`
+    fi
+    if [ -n "$date_time_after" ]; then
+      LOGS=`echo $LOGS | awk -F ';' -v a="$date_time_after" '$1 > a {print \$0}'`
+    fi
+    if [ -n "$date_time_before" ]; then
+      echo "$date_time_before"
+      LOGS=`echo $LOGS | awk -F ';' -v b="$date_time_before" '$1 < b {print \$0}'`
     fi
   fi
 }
@@ -104,13 +74,13 @@ else
       exit 0
       ;;
     -a)
-      after_dt="$2"
+      date_time_after="$2"
       filter=1
       shift
       shift
       ;;
     -b)
-      before_dt="$2"
+      date_time_before="$2"
       filter=1
       shift
       shift
@@ -119,7 +89,7 @@ else
       if [ -z $tickers ]; then
         tickers="$2"
       else
-        tickers="$tickers $2"
+        tickers="$tickers\|$2"
       fi
       filter=1
       shift
@@ -152,8 +122,7 @@ else
 fi
 
 filter_logs
-echo "$LOGS"
 launch_command
-
+echo "$LOGS"
 # TICK_FILTER="grep '^.*;\($tickers\)'""
 # READ_FILTERED="eval $READ_INPUT | awk -F ';' 'if (\$1 > $after_dt &&) {print \$0}' | eval "$TICK_FILTER""
