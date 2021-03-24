@@ -44,29 +44,7 @@ help() {
 
 }
 
-launch_command() {
-  for command in $COMMANDS; do
-    case "$command" in list-tick)
-      list_tick;;
-    esac
-    case "$command" in profit)
-      profit;;
-    esac
-    case "$command" in pos)
-      pos;;
-    esac
-    case "$command" in last-price)
-      last_price;;
-    esac
-    case "$command" in hist-ord)
-      hist_ord;;
-    esac
-    case "$command" in graph-pos)
-      graph_pos;;
-    esac
-  done
 
-}
 
 list_tick() {
   echo "$LOGS" | awk -F ';' '{ print $2 }' | sort -u
@@ -78,6 +56,64 @@ profit() {
   buy_value=`echo "$LOGS" | awk -F ';' 'BEGIN{sum=0.0} $3 ~ /buy/ {sum += $4*$6} END {OFMT="%.2f";print sum}' | bc`
   sell_value=`echo "$LOGS" | awk -F ';' 'BEGIN{sum=0.0} $3 ~ /sell/ {sum += $4*$6} END {OFMT="%.2f";print sum}' | bc`
   echo "`echo "$sell_value - $buy_value" | bc | awk '{printf "%.2f", $0}'`"
+}
+
+pos() {
+  echo "$LOGS" | awk -F ';' '
+  BEGIN{}
+  {
+    dic_last_prices[$2]=$4;
+  }
+  {
+    if ($3 == "buy") {
+      number_of_shares[$2]+=$6;
+    } else {
+      number_of_shares[$2]-=$6;
+    }
+  }
+  END{
+    max_length=0;
+    for (i in dic_last_prices) {
+      total_value=dic_last_prices[i]*number_of_shares[i]
+
+      if (length(int(total_value)) > max_length){
+        max_length=length(int(total_value));
+      }
+    }
+    for (i in dic_last_prices) {
+      total_value=dic_last_prices[i]*number_of_shares[i];
+      padding="";
+      space=" ";
+      for (counter=0; counter < max_length-length(int(total_value)); counter++) {
+        padding=padding space
+      }
+      printf "%-10s: %s%.2f\n", i, padding, total_value;
+    }
+  }' | sort -k3 -nr
+}
+
+last_price() {
+  echo "$LOGS" | awk -F ';' '
+  BEGIN{}
+  {
+    dic_last_prices[$2]=$4;
+  }
+  END{
+    max_length=0;
+    for (i in dic_last_prices) {
+      if (length(int(dic_last_prices[i])) > max_length){
+        max_length=length(int(dic_last_prices[i]));
+      }
+    }
+    for (i in dic_last_prices) {
+      padding="";
+      space=" ";
+      for (counter=0; counter < max_length-length(int(dic_last_prices[i])); counter++) {
+        padding=padding space
+      }
+      printf "%-10s: %s%.2f\n", i, padding, dic_last_prices[i]
+    }
+  }' | sort
 }
 
 hist_ord() {
@@ -162,64 +198,6 @@ graph_pos() {
     }' | sort
 }
 
-last_price() {
-  echo "$LOGS" | awk -F ';' '
-  BEGIN{}
-  {
-    dic_last_prices[$2]=$4;
-  }
-  END{
-    max_length=0;
-    for (i in dic_last_prices) {
-      if (length(int(dic_last_prices[i])) > max_length){
-        max_length=length(int(dic_last_prices[i]));
-      }
-    }
-    for (i in dic_last_prices) {
-      padding="";
-      space=" ";
-      for (counter=0; counter < max_length-length(int(dic_last_prices[i])); counter++) {
-        padding=padding space
-      }
-      printf "%-10s: %s%.2f\n", i, padding, dic_last_prices[i]
-    }
-  }' | sort
-}
-
-pos() {
-  echo "$LOGS" | awk -F ';' '
-  BEGIN{}
-  {
-    dic_last_prices[$2]=$4;
-  }
-  {
-    if ($3 == "buy") {
-      number_of_shares[$2]+=$6;
-    } else {
-      number_of_shares[$2]-=$6;
-    }
-  }
-  END{
-    max_length=0;
-    for (i in dic_last_prices) {
-      total_value=dic_last_prices[i]*number_of_shares[i]
-
-      if (length(int(total_value)) > max_length){
-        max_length=length(int(total_value));
-      }
-    }
-    for (i in dic_last_prices) {
-      total_value=dic_last_prices[i]*number_of_shares[i];
-      padding="";
-      space=" ";
-      for (counter=0; counter < max_length-length(int(total_value)); counter++) {
-        padding=padding space
-      }
-      printf "%-10s: %s%.2f\n", i, padding, total_value;
-    }
-  }' | sort -k3 -nr
-}
-
 save_file() {
   if [ `echo $file | grep "\.gz"` ]; then
     if [ -z "$LOGS" ]; then
@@ -264,7 +242,29 @@ filter_logs() {
   fi
 }
 
-hint() { echo "Usage tradelog [-h|--help] [FILTR] [PŘÍKAZ] [LOG [LOG2 [...]]" 1>&2; exit 1;}
+launch_command() {
+  for command in $COMMANDS; do
+    case "$command" in list-tick)
+      list_tick;;
+    esac
+    case "$command" in profit)
+      profit;;
+    esac
+    case "$command" in pos)
+      pos;;
+    esac
+    case "$command" in last-price)
+      last_price;;
+    esac
+    case "$command" in hist-ord)
+      hist_ord;;
+    esac
+    case "$command" in graph-pos)
+      graph_pos;;
+    esac
+  done
+
+}
 
 if [ "$1" = "--help" ]; then
     help
@@ -316,7 +316,6 @@ else
     esac
   done
 fi
-
 
 filter_logs
 launch_command
