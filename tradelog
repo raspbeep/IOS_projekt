@@ -10,7 +10,7 @@ export LC_NUMERIC=en_US.UTF-8
 
 # LIST OF VARIABLES
 date_time_after=""
-date_time_before="9999-12-31 24:60:59"
+date_time_before="9999-12-31 24:59:59"
 ticker=""
 filter=0
 after_dt=""
@@ -43,7 +43,6 @@ help() {
   echo "    -h | --help       Display this message and exit"
 
 }
-
 
 launch_command() {
   for command in $COMMANDS; do
@@ -82,84 +81,37 @@ profit() {
 }
 
 hist_ord() {
-  if [ $width -eq -1 ]; then
-    echo "$LOGS" | awk -F ';' -v width="$width" '
-      BEGIN{}
-      {
-        transaction_counter[$2]++;
-      }
-      END{
-        for (i in transaction_counter) {
-          printf "%-10s: ", i;
-          for (counter=0; counter < transaction_counter[i]; counter++) {
-            printf "#";
-          }
-          printf "\n";
-        }
-      }' | sort
-  else
   echo "$LOGS" | awk -F ';' -v width="$width" '
-    function abs(v) {return v < 0 ? -v : v}
     BEGIN{
-      max_width=0
+      max_transaction_number=0
     } 
     {
-      transaction_counter[$2]++;
+      transaction_counter[$2]+=1;
     }
     END{
       for (i in transaction_counter) {
-        if (int(transaction_counter[i]) > max_width) {
-          max_width = transaction_counter[i];
+        if (int(transaction_counter[i]) > max_transaction_number) {
+          max_transaction_number = int(transaction_counter[i]);
         }
       }
       for (i in transaction_counter) {
-        printf "%d", max_width;
         printf "%-10s: ", i;
-        for (counter=0; counter < transaction_counter[i]; counter++) {
-          printf "#";
+        if (width == -1) {
+          for (counter=0; counter < transaction_counter[i]; counter++) {
+            printf "#";
+          }
+        } else {
+          no_of_symbols=int(transaction_counter[i]*width/max_transaction_number);
+          for (counter=0; counter < int(no_of_symbols); counter++) {
+            printf "#";
+          }
         }
         printf "\n";
       }
     }' | sort
-  fi
 }
 
 graph_pos() {
-  if [ $width -eq -1 ]; then
-    echo "$LOGS" | awk -F ';' '
-    function abs(v) {return v < 0 ? -v : v};
-    BEGIN{}
-    {
-      dic_last_prices[$2]=$4;
-    }
-    {
-      if ($3 == "buy") {
-        number_of_shares[$2]+=$6;
-      } else {
-        number_of_shares[$2]-=$6;
-      }
-    }
-    END{
-      for (i in dic_last_prices) {
-        total_value=dic_last_prices[i]*number_of_shares[i];
-        no_of_symbols=int(abs(total_value)/1000);
-        symbols=""
-        excl="!"
-        hasht="#"
-        if (total_value < 0) {
-          for (x=0; x < no_of_symbols; x++) {
-            symbols=symbols excl
-          }
-        } else {
-          for (x=0; x < no_of_symbols; x++) {
-            symbols=symbols hasht
-          }
-        }
-
-        printf "%-10s: %s\n", i, symbols;
-      }
-    }' | sort -k3 -nr
-  else
     echo "$LOGS" | awk -F ';' -v width="$width" '
     function abs(v) {return v < 0 ? -v : v};
     BEGIN{}
@@ -174,11 +126,14 @@ graph_pos() {
       }
     }
     END{
-      max_value=0
-      for (i in dic_last_prices) {
-        total_value=dic_last_prices[i]*number_of_shares[i];
-        if (abs(total_value) > max_value) {
-          max_value=abs(total_value);
+      max_value=1000;
+      if (width != -1) {
+        max_value=0;
+        for (i in dic_last_prices) {
+          total_value=dic_last_prices[i]*number_of_shares[i];
+          if (abs(total_value) > max_value) {
+            max_value=abs(total_value);
+          }
         }
       }
 
@@ -205,9 +160,7 @@ graph_pos() {
         }
       }
     }' | sort
-  fi
 }
-
 
 last_price() {
   echo "$LOGS" | awk -F ';' '
@@ -382,4 +335,4 @@ elif [ -z "$COMMANDS" ]; then
   echo "$LOGS"
 fi
 
-# TODO: U příkazů hist-ord a graph-pos je za dvojtečkou na všech řádcích právě jedna mezera (případně žádná, pokud v pravém sloupci daného řádku nic není)
+# TODO: primy vstup z catu
