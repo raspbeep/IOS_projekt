@@ -74,15 +74,11 @@ list_tick() {
 }
 
 profit() {
-  buy_value=""
-  sell_value=""
-  buy_value=`echo "$LOGS" | awk -F ';' '$3 ~ /buy/ {sum += $4*$6} END {OFMT="%.2f";print sum}'`
-  sell_value=`echo "$LOGS" | awk -F ';' '$3 ~ /sell/ {sum += $4*$6} END {OFMT="%.2f";print sum}'`
-  if [ -n "$buy_value" ] && [ -n "$sell_value" ]; then 
-    echo "`echo "$sell_value - $buy_value" | bc`"
-  else
-    echo "empty selection"
-  fi
+  buy_value=0.0
+  sell_value=0.0
+  buy_value=`echo "$LOGS" | awk -F ';' 'BEGIN{sum=0.0} $3 ~ /buy/ {sum += $4*$6} END {OFMT="%.2f";print sum}' | bc`
+  sell_value=`echo "$LOGS" | awk -F ';' 'BEGIN{sum=0.0} $3 ~ /sell/ {sum += $4*$6} END {OFMT="%.2f";print sum}' | bc`
+  echo "`echo "$sell_value - $buy_value" | bc | awk '{printf "%.2f", $0}'`"
 }
 
 hist_ord() {
@@ -271,26 +267,46 @@ pos() {
   }' | sort -k3 -nr
 }
 
+save_file() {
+  if [ `echo $file | grep "\.gz"` ]; then
+    if [ -z "$LOGS" ]; then
+      LOGS="`gzip -d -c $file`"
+    else  
+      LOGS="$LOGS\n`gzip -d -c $file`"
+    fi
+  elif [ `echo $file | grep "\.log"` ]; then
+    if [ -z "$LOGS" ]; then
+      LOGS="`cat $file`"
+    else
+      LOGS="$LOGS\n`cat $file`"
+    fi
+  else
+    exit 1
+  fi
+}
+
 filter_logs() {
   IFS='\n'
-  if [ $filter -ne 0 ]; then
-    if [ -n "$tickers" ]; then
-      LOGS=`echo "$LOGS" | awk -F ";" -v tickers="$tickers" '
-      BEGIN{split(tickers, tic, " ")}
-      {
-        for (i in tic) {
-          if ($2 == tic[i]) {
-            print $0;
+  if [ "$LOGS" != "" ]; then
+    if [ $filter -ne 0 ]; then
+      if [ -n "$tickers" ]; then
+        LOGS=`echo "$LOGS" | awk -F ";" -v tickers="$tickers" '
+        BEGIN{split(tickers, tic, " ")}
+        {
+          for (i in tic) {
+            if ($2 == tic[i]) {
+              print $0;
+            }
           }
         }
-      }
-      '`
-    fi
-    if [ -n "$date_time_after" ]; then
-      LOGS=`echo $LOGS | awk -F ';' -v a="$date_time_after" '$1 > a {print $0}'`
-    fi
-    if [ "$date_time_before" != "9999-12-31 24:60:59" ]; then
-      LOGS=`echo $LOGS | awk -F ';' -v b="$date_time_before" '$1 < b {print $0}'`
+        '`
+      fi
+      if [ -n "$date_time_after" ]; then
+        LOGS=`echo $LOGS | awk -F ';' -v a="$date_time_after" '$1 > a {print $0}'`
+      fi
+      if [ "$date_time_before" != "9999-12-31 24:60:59" ]; then
+        LOGS=`echo $LOGS | awk -F ';' -v b="$date_time_before" '$1 < b {print $0}'`
+      fi
     fi
   fi
 }
@@ -341,25 +357,13 @@ else
       shift
       ;;
     *)
-      if [ `echo $1 | grep "\.gz"` ]; then
-        if [ -z "$LOGS" ]; then
-          LOGS="`gzip -d -c $1`"
-        else  
-          LOGS="$LOGS\n`gzip -d -c $1`"
-        fi
-      elif [ `echo $1 | grep "\.log"` ]; then
-        if [ -z "$LOGS" ]; then
-          LOGS="`cat $1`"
-        else
-          LOGS="$LOGS\n`cat $1`"
-        fi
-      else
-        exit 1
-      fi
+      file="$1"
+      save_file
       shift
     esac
   done
 fi
+
 
 filter_logs
 launch_command
