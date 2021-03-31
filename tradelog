@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ------------------------------------------------------------------
 # Pavel Kratochvil    IOS 1. projekt
 #
@@ -43,8 +43,6 @@ help() {
   echo "    -h | --help       Display this message and exit"
 
 }
-
-
 
 list_tick() {
   echo "$LOGS" | awk -F ';' '{ print $2 }' | sort -u
