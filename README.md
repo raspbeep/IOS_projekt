@@ -1,5 +1,5 @@
 # IOS project
-First project for the IOS subject on BUT.
 
-## Usage
-```--help```
+15/15b
+
+IOS UNIX synchronization project
